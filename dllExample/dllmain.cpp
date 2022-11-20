@@ -47,16 +47,17 @@ _ACPrintF ACPrintF = (_ACPrintF)(base + 0x6b060);
 const char* sFormat = "%s:\f%d %s";
 twglSwapBuffers wglSwapBuffersGateway;
 
-const char* hacks[5] = {
+const char* hacks[6] = {
     "Aimbot (F1)",   //0
     "GodMode (F2)",  //1
     "ESP (F3)",      //2
     "NoRecoil (F4)", //3
-    "Headshots (F5)" //4
+    "Headshots Sniper only (F5)",//4
+    "RapidFire (F6)" //5
 
 };
 
-bool bAimbot = false, bGodmode = false, bDrawMenu = false, bDrawESP = false, bNoRecoil = false, bHeadShots = false;
+bool bAimbot = false, bGodmode = false, bDrawMenu = false, bDrawESP = false, bNoRecoil = false, bHeadShots = false, bRapidFire = false;
 
 ESP esp;
 GL::Font font;
@@ -97,6 +98,9 @@ void drawMenu()
     Helpers::DisplayToggleHack(font, 55, 182, hacks[3], bNoRecoil);
     //Headshots
     Helpers::DisplayToggleHack(font, 55, 215, hacks[4], bHeadShots);
+    //Rapidfire
+    Helpers::DisplayToggleHack(font, 55, 248, hacks[5], bRapidFire);
+
 
     GL::RestoreGL();
 }
@@ -109,10 +113,19 @@ BOOL __stdcall hkwglSwapBUffers(HDC hDc)
         if (GetAsyncKeyState(VK_F2) & 1)
         {
             bGodmode = !bGodmode;
-            if (bGodmode)
+            if (bGodmode) {
+                LocalPlayerPtr->currWeapon->currReserve->Amount = 999;
+                LocalPlayerPtr->currWeapon->currAmmo->Amount = 999;
+                LocalPlayerPtr->iArmor = 999;
                 Detour32((BYTE*)hookAddress, (BYTE*)godMode, hookLength);
-            else
+                Helpers::NOP((BYTE*)0x4637e9, 2);
+            }
+            else {
+                LocalPlayerPtr->currWeapon->currReserve->Amount = 40;
+                LocalPlayerPtr->currWeapon->currAmmo->Amount = 20;
+                Helpers::Patch((BYTE*)0x4637e9, (BYTE*)"\xff\x0e", 2);
                 Helpers::Patch((BYTE*)hookAddress, (BYTE*)"\x29\x7b\x04\x8b\xc7", 5);
+            }
         }
         //ESP
         if (GetAsyncKeyState(VK_F3) & 1)
@@ -133,16 +146,22 @@ BOOL __stdcall hkwglSwapBUffers(HDC hDc)
         }
         if (GetAsyncKeyState(VK_F5) & 1)
         {
+            bHeadShots = !bHeadShots;
         if(bHeadShots)
             Helpers::NOP((BYTE*)0x461767, 2);
         else
             Helpers::Patch((BYTE*)0x461767, (BYTE*)"\x75\x09", 2);
         }
-
+        if (GetAsyncKeyState(VK_F6) & 1)
+        {
+            bRapidFire = !bRapidFire;
+        }
         //Menu
         if (GetAsyncKeyState(VK_INSERT) & 1)
             bDrawMenu = !bDrawMenu;
 
+        if (bRapidFire)
+            LocalPlayerPtr->currWeapon->currShotDelay->Amount = 0;
         //Actuall aimbot code
         if (bAimbot)
         {
@@ -154,9 +173,9 @@ BOOL __stdcall hkwglSwapBUffers(HDC hDc)
         if (bDrawMenu)
             drawMenu();
         //ESP drawing call
-        if (bDrawESP) {
+        if (bDrawESP)
             Draw();
-        }
+        
     return wglSwapBuffersGateway(hDc);
 }
 
@@ -182,9 +201,13 @@ DWORD WINAPI HackThread(HMODULE hModule)
     SwapBuffersHook.Disable();
 
 
+    LocalPlayerPtr->currWeapon->currReserve->Amount = 40;
+    LocalPlayerPtr->currWeapon->currAmmo->Amount = 20;
     Helpers::Patch((BYTE*)0x461767, (BYTE*)"\x75\x09", 2);
     Helpers::Patch((BYTE*)0x463786, (BYTE*)"\x50\x8D\x4C\x24\x1C\x51\x8B\xCE\xFF\xD2", 10);
     Helpers::Patch((BYTE*)hookAddress, (BYTE*)"\x29\x7b\x04\x8b\xc7", 5);
+    Helpers::Patch((BYTE*)0x4637e9, (BYTE*)"\xff\x0e", 2);
+
 
 
     Sleep(100);
